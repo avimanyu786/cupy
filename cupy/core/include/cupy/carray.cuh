@@ -1,11 +1,21 @@
 #pragma once
 
+#ifdef __HIPCC__
+#include <hip/hip_runtime.h>
+#include <tuple>
+int main() {return 0;}
+#endif
+
 // math
 #ifndef M_PI
 #define M_PI 3.1415926535897932384626433832795
 #endif
 
-#if __CUDACC_VER_MAJOR__ >= 9
+#ifdef __HIPCC__
+
+#include <hip/hip_fp16.h>
+
+#elif __CUDACC_VER_MAJOR__ >= 9
 
 #include <cuda_fp16.h>
 
@@ -36,6 +46,7 @@ public:
 };
 
 #endif  // #if __CUDACC_VER_MAJOR__ >= 9
+
 
 class float16 {
 private:
@@ -162,7 +173,28 @@ __device__ int isinf(float16 x) {return x.isinf();}
 __device__ int isfinite(float16 x) {return x.isfinite();}
 __device__ int signbit(float16 x) {return x.signbit();}
 
+
 // CArray
+#ifdef __HIPCC__
+template<typename T, std::size_t N, typename... Rest>
+struct tupleN_impl_ {
+  using type = typename tupleN_impl_<T, N - 1, T, Rest...>::type;
+};
+
+template<typename T, typename... Rest>
+struct tupleN_impl_<T, 0, Rest...> {
+  using type = std::tuple<Rest...>;
+};
+
+template<typename T, std::size_t N>
+using tupleN_ = typename tupleN_impl_<T, N>::type;
+
+#else  // #ifdef __HIPCC__
+template<typename T, std::size_t N>
+using tupleN_ = T[N];
+
+#endif  // #ifdef __HIPCC__
+
 #define CUPY_FOR(i, n) \
     for (ptrdiff_t i = \
             static_cast<ptrdiff_t>(blockIdx.x) * blockDim.x + threadIdx.x; \
@@ -176,8 +208,14 @@ public:
 private:
   T* data_;
   ptrdiff_t size_;
-  ptrdiff_t shape_[ndim];
-  ptrdiff_t strides_[ndim];
+  union {
+    tupleN_<ptrdiff_t, ndim> shape__;
+    ptrdiff_t shape_[ndim];
+  };
+  union {
+    tupleN_<ptrdiff_t, ndim> strides__;
+    ptrdiff_t strides_[ndim];
+  };
 
 public:
   __device__ ptrdiff_t size() const {
@@ -203,7 +241,7 @@ public:
     for (int dim = 0; dim < ndim; ++dim) {
       ptr += static_cast<ptrdiff_t>(strides_[dim]) * idx[dim];
     }
-    return reinterpret_cast<const T&>(*ptr);
+    return *reinterpret_cast<const T*>(ptr);
   }
 
   __device__ T& operator[](ptrdiff_t i) {
@@ -220,9 +258,10 @@ public:
       ptr += static_cast<ptrdiff_t>(strides_[0]) * i;
     }
 
-    return reinterpret_cast<const T&>(*ptr);
+    return *reinterpret_cast<const T*>(ptr);
   }
 };
+
 
 template <typename T>
 class CArray<T, 0> {
@@ -256,14 +295,21 @@ public:
   }
 };
 
+
 template <int _ndim>
 class CIndexer {
 public:
   static const int ndim = _ndim;
 private:
   ptrdiff_t size_;
-  ptrdiff_t shape_[ndim];
-  ptrdiff_t index_[ndim];
+  union {
+    tupleN_<ptrdiff_t, ndim> shape__;
+    ptrdiff_t shape_[ndim];
+  };
+  union {
+    tupleN_<ptrdiff_t, ndim> index__;
+    ptrdiff_t index_[ndim];
+  };
 
   typedef ptrdiff_t index_t[ndim];
 

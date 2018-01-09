@@ -23,6 +23,7 @@ maximum_cudnn_version = 7999
 minimum_cusolver_cuda_version = 8000
 
 _cuda_path = 'NOT_INITIALIZED'
+_rocm_path = 'NOT_INITIALIZED'
 _compiler_base_options = None
 
 
@@ -33,6 +34,18 @@ def _tempdir():
         yield temp_dir
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def get_rocm_path():
+    global _rocm_path
+
+    # Use a magic word to represent the cache not filled because None is a
+    # valid return value.
+    if _rocm_path is not 'NOT_INITIALIZED':
+        return _rocm_path
+
+    _rocm_path = os.environ.get('ROCM_HOME', '')
+    return _rocm_path
 
 
 def get_cuda_path():
@@ -94,6 +107,7 @@ def get_nvcc_path():
 
 def get_compiler_setting():
     cuda_path = get_cuda_path()
+    rocm_path = get_rocm_path()
 
     include_dirs = []
     library_dirs = []
@@ -107,6 +121,13 @@ def get_compiler_setting():
         else:
             library_dirs.append(os.path.join(cuda_path, 'lib64'))
             library_dirs.append(os.path.join(cuda_path, 'lib'))
+
+    if rocm_path:
+        include_dirs.append(os.path.join(rocm_path, 'include'))
+        include_dirs.append(os.path.join(rocm_path, 'rocrand', 'include'))
+        library_dirs.append(os.path.join(rocm_path, 'lib'))
+        library_dirs.append(os.path.join(rocm_path, 'rocrand', 'lib'))
+
     if PLATFORM_DARWIN:
         library_dirs.append('/usr/local/cuda/lib')
 

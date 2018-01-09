@@ -4446,7 +4446,8 @@ _clip = create_ufunc(
     'cupy_clip',
     ('???->?', 'bbb->b', 'BBB->B', 'hhh->h', 'HHH->H', 'iii->i', 'III->I',
      'lll->l', 'LLL->L', 'qqq->q', 'QQQ->Q', 'eee->e', 'fff->f', 'ddd->d'),
-    'out0 = in0 < in1 ? in1 : (in0 > in2 ? in2 : in0)')
+    'out0 = in0 < in1 ? out0_type(in1)'
+    ' : (in0 > in2 ? out0_type(in2) : out0_type(in0))')
 
 
 # -----------------------------------------------------------------------------
@@ -4534,7 +4535,11 @@ def _inclusive_scan_kernel(dtype, block_size):
     name = "inclusive_scan_kernel"
     dtype = _get_typename(dtype)
     source = string.Template("""
-    extern "C" __global__ void ${name}(const CArray<${dtype}, 1> src,
+    extern "C" __global__ void ${name}(
+    #ifdef __HIPCC__
+        hipLaunchParm lp,
+    #endif
+        const CArray<${dtype}, 1> src,
         CArray<${dtype}, 1> dst){
         long long n = src.size();
         extern __shared__ ${dtype} temp[];
@@ -4581,7 +4586,11 @@ def _add_scan_blocked_sum_kernel(dtype):
     name = "add_scan_blocked_sum_kernel"
     dtype = _get_typename(dtype)
     source = string.Template("""
-    extern "C" __global__ void ${name}(CArray<${dtype}, 1> src_dst){
+    extern "C" __global__ void ${name}(
+    #ifdef __HIPCC__
+        hipLaunchParm lp,
+    #endif
+        CArray<${dtype}, 1> src_dst){
         long long n = src_dst.size();
         unsigned int idxBase = (blockDim.x + 1) * (blockIdx.x + 1);
         unsigned int idxAdded = idxBase + threadIdx.x;

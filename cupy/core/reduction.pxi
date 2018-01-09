@@ -4,8 +4,8 @@ from libc.stdint cimport int32_t
 import string
 
 import numpy
-
 from cupy.cuda import compiler
+from cupy.cuda import stream
 from cupy import util
 
 
@@ -15,6 +15,8 @@ cpdef _get_simple_reduction_kernel(
         type_preamble, input_expr, output_expr, preamble, options):
     if identity is None:
         identity = ''
+    if runtime._is_hip_environment:
+        params = 'hipLaunchParm lp, ' + params
     module_code = string.Template('''
     ${type_preamble}
     ${preamble}
@@ -27,8 +29,12 @@ cpdef _get_simple_reduction_kernel(
 
     typedef ${reduce_type} _type_reduce;
     extern "C" __global__ void ${name}(${params}) {
+    #ifdef __HIPCC__
+      HIP_DYNAMIC_SHARED(_type_reduce, _sdata)
+    #else  // #ifdef __HIPCC__
       extern __shared__ _type_reduce _sdata_raw[];
       _type_reduce *_sdata = _sdata_raw;
+    #endif  // #ifdef __HIPCC__
       unsigned int _tid = threadIdx.x;
 
       int _J_offset = _tid / _block_stride;
@@ -265,6 +271,9 @@ class simple_reduction_function(object):
         out_block_num = (
             out_indexer.size + block_stride - 1) // block_stride
 
+        if runtime._is_hip_environment:
+            # TODO(okuta): remove this workaround
+            ret.get()
         kern.linear_launch(
             out_block_num * block_size,
             inout_args, shared_mem, block_size)
@@ -454,6 +463,10 @@ class ReductionKernel(object):
         shared_mem = 32 * block_size
         out_block_num = (
             out_indexer.size + block_stride - 1) // block_stride
+
+        if runtime._is_hip_environment:
+            # TODO(okuta): remove this workaround
+            ret.get()
 
         kern.linear_launch(
             out_block_num * block_size,

@@ -10,16 +10,16 @@ from libc.stdint cimport int32_t
 from libc.stdint cimport int64_t
 from libcpp cimport vector
 
-
+from cupy.core cimport core
 from cupy.cuda cimport driver
 from cupy.cuda cimport runtime
-from cupy.core cimport core
 from cupy.cuda cimport stream as stream_module
 
 
 cdef class CPointer:
     def __init__(self, p=0):
         self.ptr = <void*>p
+        self.size = 0
 
 
 cdef class CInt8(CPointer):
@@ -29,6 +29,7 @@ cdef class CInt8(CPointer):
     def __init__(self, int8_t v):
         self.val = v
         self.ptr = <void*>&self.val
+        self.size = 1
 
 
 cdef class CInt16(CPointer):
@@ -38,6 +39,7 @@ cdef class CInt16(CPointer):
     def __init__(self, int16_t v):
         self.val = v
         self.ptr = <void*>&self.val
+        self.size = 2
 
 
 cdef class CInt32(CPointer):
@@ -47,6 +49,7 @@ cdef class CInt32(CPointer):
     def __init__(self, int32_t v):
         self.val = v
         self.ptr = <void*>&self.val
+        self.size = 4
 
 
 cdef class CInt64(CPointer):
@@ -56,6 +59,7 @@ cdef class CInt64(CPointer):
     def __init__(self, int64_t v):
         self.val = v
         self.ptr = <void*>&self.val
+        self.size = 8
 
 
 cdef class CInt128(CPointer):
@@ -65,6 +69,7 @@ cdef class CInt128(CPointer):
     def __init__(self, double complex v):
         self.val = v
         self.ptr = <void*>&self.val
+        self.size = 16
 
 
 cdef set _pointer_numpy_types = {numpy.dtype(i).type
@@ -114,9 +119,9 @@ cdef inline size_t _get_stream(stream) except *:
         return stream.ptr
 
 
-cdef _launch(size_t func, Py_ssize_t grid0, int grid1, int grid2,
-             Py_ssize_t block0, int block1, int block2,
-             args, Py_ssize_t shared_mem, size_t stream):
+cdef _launch_cuda(size_t func, Py_ssize_t grid0, int grid1, int grid2,
+                  Py_ssize_t block0, int block1, int block2,
+                  args, Py_ssize_t shared_mem, size_t stream):
     cdef list pargs = []
     cdef vector.vector[void*] kargs
     cdef CPointer cp
@@ -130,6 +135,50 @@ cdef _launch(size_t func, Py_ssize_t grid0, int grid1, int grid2,
     driver.launchKernel(
         func, <int>grid0, grid1, grid2, <int>block0, block1, block2,
         <int>shared_mem, stream, <size_t>&(kargs[0]), <size_t>0)
+
+
+cdef _launch_hip(size_t func, Py_ssize_t grid0, int grid1, int grid2,
+                 Py_ssize_t block0, int block1, int block2,
+                 args, Py_ssize_t shared_mem, size_t stream):
+    cdef vector.vector[unsigned char] kargs
+    cdef vector.vector[size_t] config
+    cdef CPointer cp
+    cdef unsigned char* ptr
+    cdef size_t total
+    cdef Py_ssize_t size, pad
+    kargs.assign(24, 0)
+    for a in args:
+        cp = _pointer(a)
+        ptr = <unsigned char*>cp.ptr
+        size = min(cp.size, 8)
+        pad = -kargs.size() & (size - 1)
+        for i in range(pad):
+            kargs.push_back(0)
+        kargs.insert(kargs.end(), ptr, ptr + cp.size)
+    total = kargs.size()
+    # define HIP_LAUNCH_PARAM_BUFFER_POINTER ((void*) 0x01)
+    # define HIP_LAUNCH_PARAM_BUFFER_SIZE    ((void*) 0x02)
+    # define HIP_LAUNCH_PARAM_END            ((void*) 0x03)
+    config.push_back(1)
+    config.push_back(<size_t><void*>&(kargs[0]))
+    config.push_back(2)
+    config.push_back(<size_t><void*>&total)
+    config.push_back(3)
+
+    driver.launchKernel(
+        func, <int>grid0, grid1, grid2, <int>block0, block1, block2,
+        <int>shared_mem, stream, 0, <size_t>&(config[0]))
+
+
+cdef _launch(size_t func, Py_ssize_t grid0, int grid1, int grid2,
+             Py_ssize_t block0, int block1, int block2,
+             args, Py_ssize_t shared_mem, size_t stream):
+    if runtime._is_hip_environment:
+        _launch_hip(func, grid0, grid1, grid2, block0, block1, block2,
+                    args, shared_mem, stream)
+    else:
+        _launch_cuda(func, grid0, grid1, grid2, block0, block1, block2,
+                     args, shared_mem, stream)
 
 
 cdef class Function:

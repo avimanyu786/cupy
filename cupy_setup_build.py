@@ -26,6 +26,7 @@ from install.build import PLATFORM_WIN32
 required_cython_version = pkg_resources.parse_version('0.28.0')
 ignore_cython_versions = [
 ]
+use_hip = bool(int(os.environ.get('CUPY_INSTALL_USE_HIP', '0')))
 
 MODULES = [
     {
@@ -158,6 +159,38 @@ MODULES = [
     }
 ]
 
+if use_hip:
+    MODULES = MODULES[:1]
+    mod_cuda = MODULES[0]
+    mod_cuda['include'] = [
+        'hip/hip_runtime.h',
+        'hipblas.h',
+        #        'cublas_v2.h',
+        #        'cuda.h',
+        #        'cuda_profiler_api.h',
+        #        'cuda_runtime.h',
+        #        'cufft.h',
+        #        'curand.h',
+        #        'cusparse.h',
+        #        'nvrtc.h',
+        #        'nvToolsExt.h',
+    ]
+    mod_cuda['libraries'] = [
+        'hip_hcc',
+        'hipblas',
+        'hiprand',
+        #        'hipblas',
+        #        'cuda',
+        #        'cudart',
+        #        'cufft',
+        #        'curand',
+        #        'cusparse',
+        #        'nvrtc',
+        #        'nvToolsExt',
+    ]
+    del mod_cuda['version_method']
+    del mod_cuda['check_method']
+
 
 def ensure_module_file(file):
     if isinstance(file, tuple):
@@ -244,7 +277,8 @@ def preconfigure_modules(compiler, settings):
     ]
 
     for key in ['CFLAGS', 'LDFLAGS', 'LIBRARY_PATH',
-                'CUDA_PATH', 'NVTOOLSEXT_PATH', 'NVCC']:
+                'CUDA_PATH', 'NVTOOLSEXT_PATH', 'NVCC',
+                'ROCM_HOME']:
         summary += ['  {:<16}: {}'.format(key, os.environ.get(key, '(none)'))]
 
     summary += [
@@ -343,6 +377,7 @@ def make_extensions(options, compiler, use_cython):
     """Produce a list of Extension instances which passed to cythonize()."""
 
     no_cuda = options['no_cuda']
+    use_hip = options['use_hip']
     settings = build.get_compiler_setting()
 
     include_dirs = settings['include_dirs']
@@ -374,6 +409,9 @@ def make_extensions(options, compiler, use_cython):
         settings['define_macros'].append(('CYTHON_TRACE_NOGIL', '1'))
     if no_cuda:
         settings['define_macros'].append(('CUPY_NO_CUDA', '1'))
+    if use_hip:
+        settings['define_macros'].append(('CUPY_USE_HIP', '1'))
+        settings['define_macros'].append(('__HIP_PLATFORM_HCC__', '1'))
 
     available_modules = []
     if no_cuda:
@@ -443,6 +481,7 @@ def make_extensions(options, compiler, use_cython):
     return ret
 
 
+# TODO(oktua): use enviriment variable
 def parse_args():
     parser = argparse.ArgumentParser(add_help=False)
 
@@ -468,6 +507,9 @@ def parse_args():
     parser.add_argument(
         '--cupy-no-cuda', action='store_true', default=False,
         help='build CuPy with stub header file')
+    # parser.add_argument(
+    #     '--cupy-use-hip', action='store_true', default=False,
+    #     help='build CuPy with HIP')
 
     opts, sys.argv = parser.parse_known_args(sys.argv)
 
@@ -480,6 +522,7 @@ def parse_args():
         'linetrace': opts.cupy_coverage,
         'annotate': opts.cupy_coverage,
         'no_cuda': opts.cupy_no_cuda,
+        'use_hip': use_hip  # opts.cupy_use_hip,
     }
     if check_readthedocs_environment():
         arg_options['no_cuda'] = True

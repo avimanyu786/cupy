@@ -7,7 +7,6 @@ cdef class CScalar(CPointer):
 
     cdef:
         char kind
-        int8_t size
 
     cpdef apply_dtype(self, dtype)
     cpdef get_numpy_type(self)

@@ -21,11 +21,14 @@ from cupy.core.core cimport compile_with_cache
 from cupy.core.core cimport Indexer
 from cupy.core.core cimport ndarray
 from cupy.core cimport internal
+from cupy.cuda cimport runtime
 
 
 cpdef _get_simple_elementwise_kernel(
         params, operation, name, preamble,
         loop_prep='', after_loop='', options=()):
+    if runtime._is_hip_environment:
+        params = 'hipLaunchParm lp, ' + params
     module_code = string.Template('''
     ${preamble}
     extern "C" __global__ void ${name}(${params}) {
