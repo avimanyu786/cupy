@@ -616,11 +616,15 @@ cublasStatus_t cublasSgetrfBatched(...) {
     return HIPBLAS_STATUS_NOT_SUPPORTED;
 }
 
+cublasStatus_t cublasDgetrfBatched(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
 cublasStatus_t cublasSgetriBatched(...) {
     return HIPBLAS_STATUS_NOT_SUPPORTED;
 }
 
-cublasStatus_t cublasDgetrfBatched(...) {
+cublasStatus_t cublasDgetriBatched(...) {
     return HIPBLAS_STATUS_NOT_SUPPORTED;
 }
 
