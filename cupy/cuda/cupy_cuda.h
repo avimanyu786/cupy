@@ -1445,6 +1445,10 @@ cublasStatus_t cublasSgetriBatched(...) {
     return CUBLAS_STATUS_SUCCESS;
 }
 
+cublasStatus_t cublasDgetriBatched(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
 cublasStatus_t cublasStrttp(...) {
     return CUBLAS_STATUS_SUCCESS;
 }
