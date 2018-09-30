@@ -18,86 +18,60 @@ cpdef _get_simple_reduction_kernel(
     if runtime._is_hip_environment:
         params = 'hipLaunchParm lp, ' + params
     module_code = string.Template('''
-    ${type_preamble}
-    ${preamble}
-    #define REDUCE(a, b) (${reduce_expr})
-    #define POST_MAP(a) (${post_map_expr})
-    #define _REDUCE(_offset) if (_tid < _offset) { \
-      _type_reduce _a = _sdata[_tid], _b = _sdata[(_tid + _offset)]; \
-      _sdata[_tid] = REDUCE(_a, _b); \
+${type_preamble}
+${preamble}
+#define REDUCE(a, b) (${reduce_expr})
+#define POST_MAP(a) (${post_map_expr})
+#define _REDUCE(_offset) if (_tid < _offset) { \
+  _type_reduce _a = _sdata[_tid], _b = _sdata[(_tid + _offset)]; \
+  _sdata[_tid] = REDUCE(_a, _b); \
+}
+
+typedef ${reduce_type} _type_reduce;
+extern "C" __global__ void ${name}(${params}) {
+  __shared__ _type_reduce _sdata[${block_size}];
+  unsigned int _tid = threadIdx.x;
+
+  int _J_offset = _tid >> __popc(_block_stride - 1);  // _tid / _block_stride
+  int _j_offset = _J_offset * _out_ind.size();
+  int _J_stride = ${block_size} >> __popc(_block_stride - 1);
+  long long _j_stride = (long long)_J_stride * _out_ind.size();
+
+  for (int _i_base = blockIdx.x * _block_stride;
+       _i_base < _out_ind.size();
+       _i_base += gridDim.x * _block_stride) {
+    _type_reduce _s = _type_reduce(${identity});
+    int _i = _i_base + (_tid & (_block_stride - 1));  // _tid % _block_stride
+    int _J = _J_offset;
+    for (long long _j = _i + _j_offset; _j < _in_ind.size();
+         _j += _j_stride, _J += _J_stride) {
+      _in_ind.set(_j);
+      ${input_expr}
+      _type_reduce _a = static_cast<_type_reduce>(${pre_map_expr});
+      _s = REDUCE(_s, _a);
     }
-
-    typedef ${reduce_type} _type_reduce;
-    extern "C" __global__ void ${name}(${params}) {
-    #ifdef __HIPCC__
-      HIP_DYNAMIC_SHARED(_type_reduce, _sdata)
-    #else  // #ifdef __HIPCC__
-      extern __shared__ _type_reduce _sdata_raw[];
-      _type_reduce *_sdata = _sdata_raw;
-    #endif  // #ifdef __HIPCC__
-      unsigned int _tid = threadIdx.x;
-
-      int _J_offset = _tid / _block_stride;
-      int _j_offset = _J_offset * _out_ind.size();
-      int _J_stride = ${block_size} / _block_stride;
-      long long _j_stride = (long long)_J_stride * _out_ind.size();
-
-      for (int _i_base = blockIdx.x * _block_stride;
-           _i_base < _out_ind.size();
-           _i_base += gridDim.x * _block_stride) {
-        _type_reduce _s = _type_reduce(${identity});
-        int _i = _i_base + _tid % _block_stride;
-        int _J = _J_offset;
-        for (long long _j = _i + _j_offset; _j < _in_ind.size();
-             _j += _j_stride, _J += _J_stride) {
-          _in_ind.set(_j);
-          ${input_expr}
-          _type_reduce _a = static_cast<_type_reduce>(${pre_map_expr});
-          _s = REDUCE(_s, _a);
+    if (_block_stride < ${block_size}) {
+      _sdata[_tid] = _s;
+      __syncthreads();
+      for (unsigned int _block = ${block_size} / 2;
+           _block >= _block_stride; _block >>= 1) {
+        if (_tid < _block) {
+          _REDUCE(_block);
         }
-        if (_block_stride < ${block_size}) {
-          _sdata[_tid] = _s;
-          __syncthreads();
-          if (_block_stride <= 256) {
-            _REDUCE(256);
-            __syncthreads();
-            if (_block_stride <= 128) {
-              _REDUCE(128);
-              __syncthreads();
-              if (_block_stride <= 64) {
-                _REDUCE(64);
-                __syncthreads();
-                if (_block_stride <= 32) {
-                  _REDUCE(32);
-                  if (_block_stride <= 16) {
-                    _REDUCE(16);
-                    if (_block_stride <= 8) {
-                      _REDUCE(8);
-                      if (_block_stride <= 4) {
-                        _REDUCE(4);
-                        if (_block_stride <= 2) {
-                          _REDUCE(2);
-                          if (_block_stride <= 1) {
-                            _REDUCE(1);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          _s = _sdata[_tid];
-          __syncthreads();
-        }
-        if (_J_offset == 0 && _i < _out_ind.size()) {
-          _out_ind.set(_i);
-          ${output_expr}
-          POST_MAP(_s);
-        }
+        __syncthreads();
       }
-    }''').substitute(
+      if (_tid < _block_stride) {
+        _s = _sdata[_tid];
+      }
+      __syncthreads();
+    }
+    if (_tid < _block_stride && _i < _out_ind.size()) {
+      _out_ind.set(static_cast<ptrdiff_t>(_i));
+      ${output_expr}
+      POST_MAP(_s);
+    }
+  }
+}''').substitute(
         name=name,
         block_size=block_size,
         reduce_type=reduce_type,
@@ -266,18 +240,19 @@ class simple_reduction_function(object):
             self.name, block_size, self.identity,
             self._input_expr, self._output_expr, self._preamble, ())
 
-        # TODO(okuta) set actual size
-        shared_mem = 32 * block_size
         out_block_num = (
             out_indexer.size + block_stride - 1) // block_stride
 
         if runtime._is_hip_environment:
             # TODO(okuta): remove this workaround
-            ret.get()
+            ret.copy()
+
         kern.linear_launch(
-            out_block_num * block_size,
-            inout_args, shared_mem, block_size)
+            out_block_num * block_size, inout_args, 0, block_size)
         return ret
+
+if runtime._is_hip_environment:
+    simple_reduction_function._block_size = 256
 
 
 @util.memoize(for_each_device=True)
@@ -442,6 +417,8 @@ class ReductionKernel(object):
             in_args, reduce_axis + out_axis, broad_shape, self.in_params)
 
         block_size = 512
+        if runtime._is_hip_environment:
+            block_size = 256
         in_indexer = Indexer(in_shape)
         out_indexer = Indexer(out_shape)
         reduce_block_size = max(
@@ -459,18 +436,11 @@ class ReductionKernel(object):
             self.map_expr, self.reduce_expr, self.post_map_expr,
             self.preamble, self.options)
 
-        # TODO(okuta) set actual size
-        shared_mem = 32 * block_size
         out_block_num = (
             out_indexer.size + block_stride - 1) // block_stride
 
-        if runtime._is_hip_environment:
-            # TODO(okuta): remove this workaround
-            ret.get()
-
         kern.linear_launch(
-            out_block_num * block_size,
-            inout_args, shared_mem, block_size, stream)
+            out_block_num * block_size, inout_args, 0, block_size, stream)
         return ret
 
 
