@@ -2074,7 +2074,7 @@ __device__ min_max_st<T> my_min(
         const min_max_st<T>& a, const min_max_st<T>& b) {
     if (a.index == -1) return b;
     if (b.index == -1) return a;
-    return min_max_st<T>(min(a.value, b.value));
+    return min_max_st<T>((a.value <= b.value) ? a.value : b.value);
 }
 template <typename T>
 __device__ min_max_st<T> my_min_float(
@@ -2083,7 +2083,7 @@ __device__ min_max_st<T> my_min_float(
     if (b.index == -1) return a;
     if (is_nan(a.value)) return a;
     if (is_nan(b.value)) return b;
-    return min_max_st<T>(min(a.value, b.value));
+    return min_max_st<T>((a.value <= b.value) ? a.value : b.value);
 }
 
 template <typename T>
@@ -2091,7 +2091,7 @@ __device__ min_max_st<T> my_max(
         const min_max_st<T>& a, const min_max_st<T>& b) {
     if (a.index == -1) return b;
     if (b.index == -1) return a;
-    return min_max_st<T>(max(a.value, b.value));
+    return min_max_st<T>((a.value >= b.value) ? a.value : b.value);
 }
 template <typename T>
 __device__ min_max_st<T> my_max_float(
@@ -2100,7 +2100,7 @@ __device__ min_max_st<T> my_max_float(
     if (b.index == -1) return a;
     if (is_nan(a.value)) return a;
     if (is_nan(b.value)) return b;
-    return min_max_st<T>(max(a.value, b.value));
+    return min_max_st<T>((a.value >= b.value) ? a.value : b.value);
 }
 
 template <typename T>
