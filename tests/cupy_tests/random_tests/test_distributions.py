@@ -216,6 +216,34 @@ class TestDistributionsGumbel(RandomDistributionsTestCase):
 
 @testing.parameterize(*testing.product({
     'shape': [(4, 3, 2), (3, 2)],
+    'ngood_shape': [(), (3, 2)],
+    'nbad_shape': [(), (3, 2)],
+    'nsample_shape': [(), (3, 2)],
+    'nsample_dtype': [numpy.int32, numpy.int64],  # to escape timeout
+    'dtype': [numpy.int32, numpy.int64],  # to escape timeout
+})
+)
+@testing.gpu
+class TestDistributionsHyperGeometric(unittest.TestCase):
+
+    def check_distribution(self, dist_func, ngood_dtype, nbad_dtype,
+                           nsample_dtype, dtype):
+        ngood = cupy.ones(self.ngood_shape, dtype=ngood_dtype)
+        nbad = cupy.ones(self.nbad_shape, dtype=nbad_dtype)
+        nsample = cupy.ones(self.nsample_shape, dtype=nsample_dtype)
+        out = dist_func(ngood, nbad, nsample, self.shape, dtype)
+        self.assertEqual(self.shape, out.shape)
+        self.assertEqual(out.dtype, dtype)
+
+    @cupy.testing.for_dtypes_combination(
+        [numpy.int32, numpy.int64], names=['ngood_dtype', 'nbad_dtype'])
+    def test_hypergeometric(self, ngood_dtype, nbad_dtype):
+        self.check_distribution(distributions.hypergeometric, ngood_dtype,
+                                nbad_dtype, self.nsample_dtype, self.dtype)
+
+
+@testing.parameterize(*testing.product({
+    'shape': [(4, 3, 2), (3, 2)],
     'loc_shape': [(), (3, 2)],
     'scale_shape': [(), (3, 2)],
 })
@@ -230,6 +258,25 @@ class TestDistributionsLaplace(RandomDistributionsTestCase):
         loc = numpy.ones(self.loc_shape, dtype=loc_dtype)
         scale = numpy.ones(self.scale_shape, dtype=scale_dtype)
         self.check_distribution('laplace',
+                                {'loc': loc, 'scale': scale}, dtype)
+
+
+@testing.parameterize(*testing.product({
+    'shape': [(4, 3, 2), (3, 2)],
+    'loc_shape': [(), (3, 2)],
+    'scale_shape': [(), (3, 2)],
+})
+)
+@testing.gpu
+class TestDistributionsLogistic(RandomDistributionsTestCase):
+
+    @cupy.testing.for_float_dtypes('dtype', no_float16=True)
+    @cupy.testing.for_dtypes_combination(
+        _float_dtypes, names=['loc_dtype', 'scale_dtype'])
+    def test_logistic(self, loc_dtype, scale_dtype, dtype):
+        loc = numpy.ones(self.loc_shape, dtype=loc_dtype)
+        scale = numpy.ones(self.scale_shape, dtype=scale_dtype)
+        self.check_distribution('logistic',
                                 {'loc': loc, 'scale': scale}, dtype)
 
 
@@ -451,6 +498,37 @@ class TestDistributionsVonmises(unittest.TestCase):
     def test_vonmises(self, mu_dtype, kappa_dtype):
         self.check_distribution(distributions.vonmises,
                                 mu_dtype, kappa_dtype, self.dtype)
+
+
+@testing.parameterize(*testing.product({
+    'shape': [(4, 3, 2), (3, 2)],
+    'a_shape': [(), (3, 2)],
+})
+)
+@testing.gpu
+class TestDistributionsWeibull(RandomDistributionsTestCase):
+
+    @cupy.testing.for_float_dtypes('dtype', no_float16=True)
+    @cupy.testing.for_float_dtypes('a_dtype')
+    def test_weibull(self, a_dtype, dtype):
+        a = numpy.ones(self.a_shape, dtype=a_dtype)
+        self.check_distribution('weibull',
+                                {'a': a}, dtype)
+
+    @cupy.testing.for_float_dtypes('dtype', no_float16=True)
+    @cupy.testing.for_float_dtypes('a_dtype')
+    def test_weibull_for_inf_a(self, a_dtype, dtype):
+        a = numpy.full(self.a_shape, numpy.inf, dtype=a_dtype)
+        self.check_distribution('weibull', {'a': a}, dtype)
+
+    @cupy.testing.for_float_dtypes('dtype', no_float16=True)
+    @cupy.testing.for_float_dtypes('a_dtype')
+    def test_weibull_for_negative_a(self, a_dtype, dtype):
+        a = numpy.full(self.a_shape, -0.5, dtype=a_dtype)
+        with self.assertRaises(ValueError):
+            cp_params = {'a': cupy.asarray(a)}
+            getattr(distributions, 'weibull')(
+                size=self.shape, dtype=dtype, **cp_params)
 
 
 @testing.parameterize(*testing.product({

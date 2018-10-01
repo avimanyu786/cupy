@@ -233,6 +233,21 @@ class TestGeometric(RandomGeneratorTestCase):
         self.generate(p=self.p, size=(3, 2))
 
 
+@testing.parameterize(
+    {'ngood': 1, 'nbad': 1, 'nsample': 1},
+    {'ngood': 1, 'nbad': 1, 'nsample': 2},
+)
+@testing.gpu
+@testing.fix_random()
+class TestHypergeometric(RandomGeneratorTestCase):
+
+    target_method = 'hypergeometric'
+
+    def test_hypergeometric(self):
+        self.generate(ngood=self.ngood, nbad=self.nbad, nsample=self.nsample,
+                      size=(3, 2))
+
+
 @testing.gpu
 @testing.fix_random()
 class TestLaplace(RandomGeneratorTestCase):
@@ -247,6 +262,24 @@ class TestLaplace(RandomGeneratorTestCase):
 
     def test_laplace_2(self):
         self.generate(0.0, 1.0, size=(3, 2))
+
+
+@testing.gpu
+@testing.fix_random()
+class TestLogistic(RandomGeneratorTestCase):
+
+    target_method = 'logistic'
+
+    def test_logistic_1(self):
+        self.generate()
+
+    def test_logistic_2(self):
+        self.generate(0.0, 1.0, size=(3, 2))
+
+    def test_standard_logistic_isfinite(self):
+        for _ in range(10):
+            x = self.generate(size=10**7)
+            self.assertTrue(cupy.isfinite(x).all())
 
 
 @testing.gpu
@@ -836,6 +869,22 @@ class TestVonmises(RandomGeneratorTestCase):
 
     def test_vonmises(self):
         self.generate(mu=self.mu, kappa=self.kappa, size=(3, 2))
+
+
+@testing.parameterize(
+    {'a': 0.5},
+    {'a': 1.0},
+    {'a': 3.0},
+    {'a': numpy.inf},
+)
+@testing.gpu
+@testing.fix_random()
+class TestWeibull(RandomGeneratorTestCase):
+
+    target_method = 'weibull'
+
+    def test_weibull(self):
+        self.generate(a=self.a, size=(3, 2))
 
 
 @testing.parameterize(

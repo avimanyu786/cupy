@@ -200,6 +200,22 @@ class RandomState(object):
         self.rk_seed += numpy.prod(size)
         return y
 
+    def hypergeometric(self, ngood, nbad, nsample, size=None, dtype=int):
+        """Returns an array of samples drawn from the hypergeometric distribution.
+
+        .. seealso::
+            :func:`cupy.random.hypergeometric` for full documentation,
+            :meth:`numpy.random.RandomState.hypergeometric`
+        """
+        ngood, nbad, nsample = \
+            cupy.asarray(ngood), cupy.asarray(nbad), cupy.asarray(nsample)
+        if size is None:
+            size = cupy.broadcast(ngood, nbad, nsample).shape
+        y = cupy.empty(shape=size, dtype=dtype)
+        _kernels.hypergeometric_kernel(ngood, nbad, nsample, self.rk_seed, y)
+        self.rk_seed += numpy.prod(size)
+        return y
+
     _laplace_kernel = core.ElementwiseKernel(
         'T x, T loc, T scale', 'T y',
         'y = loc + scale * ((x <= 0.5) ? log(x + x): -log(x + x - 1.0))',
@@ -218,6 +234,25 @@ class RandomState(object):
             size = cupy.broadcast(loc, scale).shape
         x = self._random_sample_raw(size, dtype)
         RandomState._laplace_kernel(x, loc, scale, x)
+        return x
+
+    def logistic(self, loc=0.0, scale=1.0, size=None, dtype=float):
+        """Returns an array of samples drawn from the logistic distribution.
+
+        .. seealso::
+            :func:`cupy.random.logistic` for full documentation,
+            :meth:`numpy.random.RandomState.logistic`
+        """
+        loc, scale = cupy.asarray(loc), cupy.asarray(scale)
+        if size is None:
+            size = cupy.broadcast(loc, scale).shape
+        x = cupy.empty(shape=size, dtype=dtype)
+        _kernels.open_uniform_kernel(self.rk_seed, x)
+        self.rk_seed += numpy.prod(size)
+        x = (1.0 - x) / x
+        cupy.log(x, out=x)
+        cupy.multiply(x, scale, out=x)
+        cupy.add(x, loc, out=x)
         return x
 
     def lognormal(self, mean=0.0, sigma=1.0, size=None, dtype=float):
@@ -596,6 +631,20 @@ class RandomState(object):
         _kernels.vonmises_kernel(mu, kappa, self.rk_seed, y)
         self.rk_seed += numpy.prod(size)
         return y
+
+    def weibull(self, a, size=None, dtype=float):
+        """Returns an array of samples drawn from the weibull distribution.
+
+        .. seealso::
+            :func:`cupy.random.weibull` for full documentation,
+            :meth:`numpy.random.RandomState.weibull`
+        """
+        a = cupy.asarray(a)
+        if cupy.any(a < 0):
+            raise ValueError("a < 0")
+        x = self.standard_exponential(size, dtype)
+        cupy.power(x, 1./a, out=x)
+        return x
 
     def zipf(self, a, size=None, dtype=int):
         """Returns an array of samples drawn from the Zipf distribution.

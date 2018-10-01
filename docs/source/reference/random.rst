@@ -45,7 +45,9 @@ Distributions
    cupy.random.gamma
    cupy.random.geometric
    cupy.random.gumbel
+   cupy.random.hypergeometric
    cupy.random.laplace
+   cupy.random.logistic
    cupy.random.lognormal
    cupy.random.multinomial
    cupy.random.multivariate_normal
@@ -59,6 +61,7 @@ Distributions
    cupy.random.standard_t
    cupy.random.uniform
    cupy.random.vonmises
+   cupy.random.weibull
    cupy.random.zipf
 
 
