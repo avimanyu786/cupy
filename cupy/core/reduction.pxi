@@ -29,7 +29,8 @@ ${preamble}
 
 typedef ${reduce_type} _type_reduce;
 extern "C" __global__ void ${name}(${params}) {
-  __shared__ _type_reduce _sdata[${block_size}];
+  __shared__ char _sdata_raw[${block_size} * sizeof(_type_reduce)];
+  _type_reduce *_sdata = reinterpret_cast<_type_reduce*>(_sdata_raw);
   unsigned int _tid = threadIdx.x;
 
   int _J_offset = _tid >> __popc(_block_stride - 1);  // _tid / _block_stride
@@ -261,18 +262,20 @@ def _get_reduction_kernel(
         name, block_size, reduce_type, identity, map_expr, reduce_expr,
         post_map_expr, preamble, options):
     kernel_params = _get_kernel_params(params, args_info)
-    arrays = [p for p, a in zip(params, args_info)
-              if not p.raw and a[0] is ndarray]
+    in_arrays = [p for p, a in zip(params, args_info)[:nin]
+                 if not p.raw and a[0] is ndarray]
+    out_arrays = [p for p, a in zip(params, args_info)[nin:nin + nout]
+                  if not p.raw and a[0] is ndarray]
     type_preamble = '\n'.join(
         'typedef %s %s;' % (_get_typename(v), k)
         for k, v in types)
     input_expr = '\n'.join(
         [(('const {0} {1}' if p.is_const else '{0}& {1}') +
           ' = _raw_{1}[_in_ind.get()];').format(p.ctype, p.name)
-         for p in arrays[:nin]])
+         for p in in_arrays])
     output_expr = '\n'.join(
         ['{0} &{1} = _raw_{1}[_out_ind.get()];'.format(p.ctype, p.name)
-         for p in arrays[nin:nin + nout] if not p.is_const])
+         for p in out_arrays if not p.is_const])
 
     return _get_simple_reduction_kernel(
         name, block_size, reduce_type, kernel_params, identity,
