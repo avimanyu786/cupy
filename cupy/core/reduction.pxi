@@ -252,6 +252,7 @@ class simple_reduction_function(object):
             out_block_num * block_size, inout_args, 0, block_size)
         return ret
 
+
 if runtime._is_hip_environment:
     simple_reduction_function._block_size = 256
 
