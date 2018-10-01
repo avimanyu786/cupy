@@ -190,8 +190,10 @@ template<typename T, std::size_t N>
 using tupleN_ = typename tupleN_impl_<T, N>::type;
 
 #else  // #ifdef __HIPCC__
-template<typename T, std::size_t N>
-using tupleN_ = T[N];
+template<typename T, size_t N>
+struct tupleN_ {
+  T _dummy[N];
+};
 
 #endif  // #ifdef __HIPCC__
 
