@@ -263,9 +263,11 @@ def _get_reduction_kernel(
         name, block_size, reduce_type, identity, map_expr, reduce_expr,
         post_map_expr, preamble, options):
     kernel_params = _get_kernel_params(params, args_info)
-    in_arrays = [p for p, a in zip(params, args_info)[:nin]
+    params = params[:nin + nout]
+    args_info = args_info[:nin + nout]
+    in_arrays = [p for p, a in zip(params[:nin], args_info[:nin])
                  if not p.raw and a[0] is ndarray]
-    out_arrays = [p for p, a in zip(params, args_info)[nin:nin + nout]
+    out_arrays = [p for p, a in zip(params[nin:], args_info[nin:])
                   if not p.raw and a[0] is ndarray]
     type_preamble = '\n'.join(
         'typedef %s %s;' % (_get_typename(v), k)
