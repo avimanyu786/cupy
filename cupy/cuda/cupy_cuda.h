@@ -1423,6 +1423,14 @@ cublasStatus_t cublasDtrsm(...) {
     return CUBLAS_STATUS_SUCCESS;
 }
 
+cublasStatus_t cublasCtrsm(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
+cublasStatus_t cublasZtrsm(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
 
 // BLAS extension
 cublasStatus_t cublasSgeam(...) {
@@ -1445,11 +1453,27 @@ cublasStatus_t cublasDgetrfBatched(...) {
     return CUBLAS_STATUS_SUCCESS;
 }
 
+cublasStatus_t cublasCgetrfBatched(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
+cublasStatus_t cublasZgetrfBatched(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
 cublasStatus_t cublasSgetriBatched(...) {
     return CUBLAS_STATUS_SUCCESS;
 }
 
 cublasStatus_t cublasDgetriBatched(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
+cublasStatus_t cublasCgetriBatched(...) {
+    return CUBLAS_STATUS_SUCCESS;
+}
+
+cublasStatus_t cublasZgetriBatched(...) {
     return CUBLAS_STATUS_SUCCESS;
 }
 
