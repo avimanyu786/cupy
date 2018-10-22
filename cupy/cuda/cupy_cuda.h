@@ -589,6 +589,15 @@ cublasStatus_t cublasDtrsm(...) {
 }
 
 
+cublasStatus_t cublasCtrsm(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
+cublasStatus_t cublasZtrsm(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
+
 // BLAS extension
 cublasStatus_t cublasSgeam(
         cublasHandle_t handle,
@@ -620,11 +629,27 @@ cublasStatus_t cublasDgetrfBatched(...) {
     return HIPBLAS_STATUS_NOT_SUPPORTED;
 }
 
+cublasStatus_t cublasCgetrfBatched(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
+cublasStatus_t cublasZgetrfBatched(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
 cublasStatus_t cublasSgetriBatched(...) {
     return HIPBLAS_STATUS_NOT_SUPPORTED;
 }
 
 cublasStatus_t cublasDgetriBatched(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
+cublasStatus_t cublasCgetriBatched(...) {
+    return HIPBLAS_STATUS_NOT_SUPPORTED;
+}
+
+cublasStatus_t cublasZgetriBatched(...) {
     return HIPBLAS_STATUS_NOT_SUPPORTED;
 }
 
