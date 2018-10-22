@@ -1,6 +1,8 @@
 from cpython cimport sequence
 from libc.stdint cimport int32_t
 
+from cupy.cuda cimport runtime
+
 import string
 
 import numpy
@@ -15,8 +17,6 @@ cpdef _get_simple_reduction_kernel(
         type_preamble, input_expr, output_expr, preamble, options):
     if identity is None:
         identity = ''
-    if runtime._is_hip_environment:
-        params = 'hipLaunchParm lp, ' + params
     module_code = string.Template('''
 ${type_preamble}
 ${preamble}

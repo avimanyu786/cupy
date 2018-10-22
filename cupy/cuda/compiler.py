@@ -272,10 +272,9 @@ def _get_hipcc_version():
     return _hipcc_version
 
 
-def _run_hipcc(cmd, cwd='.', env=None):
+def _run_hipcc(cmd, cwd='.'):
     try:
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT,
-                                       cwd=cwd, env=env)
+        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, cwd=cwd)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(
             '`hipcc` command returns non-zero exit status. \n'
@@ -289,24 +288,13 @@ def _run_hipcc(cmd, cwd='.', env=None):
                       + str(e))
 
 
-def _run_hipcc_convert(in_path, out_path, cwd):
-    cmd = '''
-kernels=$(objdump -t "{input}" | grep grid_launch_parm \
-    | sed 's/ \+/ /g; s/\t/ /g' | cut -d" " -f6)
-map_sym=""
-for mangled_sym in $kernels; do
-  real_sym=$(c++filt $(c++filt $mangled_sym|cut -d: -f3|sed 's/_functor//g') \
-      | cut -d\( -f1)
-  map_sym="--redefine-sym $mangled_sym=$real_sym $map_sym"
-done
-objcopy -F elf64-little $map_sym "{input}" "{output}"
-'''.format(input=in_path, output=out_path)
+def _run_hipcc_convert(in_path, out_path, cwd, arch):
+    cmd = ['ca', '--targets=' + arch, in_path]
     try:
-        return subprocess.check_output(cmd, cwd=cwd, shell=True,
-                                       stderr=subprocess.STDOUT)
+        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, cwd=cwd)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(
-            'covert command returns non-zero exit status. \n'
+            'ca command returns non-zero exit status. \n'
             'command: {0}\n'
             'return-code: {1}\n'
             'stdout/stderr: \n'
@@ -318,30 +306,29 @@ objcopy -F elf64-little $map_sym "{input}" "{output}"
 
 
 def _hipcc(source, options, arch):
-    cmd = ['hipcc', '-DGENERIC_GRID_LAUNCH=0'] + list(options)
+    cmd = ['hipcc', '--genco', '--targets=' + arch,
+           '--flags="%s"' % ' '.join(options)]
 
     with TemporaryDirectory() as root_dir:
         path = os.path.join(root_dir, 'kern')
         in_path = path + '.cpp'
-        tmp_path = os.path.join(root_dir, 'dump-%s.hsaco' % arch)
         dummy_out_path = path + '.out'
-        out_path = path + '.hasco'
+        tmp_path = dummy_out_path + '.adipose'
+        out_path = dummy_out_path + '_%s.ffa' % arch
 
         with open(in_path, 'w') as f:
             f.write(source)
 
         cmd += [in_path, '-o', dummy_out_path]
-        env = os.environ.copy()
-        env['KMDUMPISA'] = '1'
 
-        output = _run_hipcc(cmd, root_dir, env)
+        output = _run_hipcc(cmd, root_dir)
         if not os.path.isfile(tmp_path):
             raise RuntimeError(
                 '`hipcc` command does not generate output file. \n'
                 'command: {0}\n'
                 'stdout/stderr: \n'
                 '{1}'.format(cmd, output))
-        _run_hipcc_convert(tmp_path, out_path, root_dir)
+        _run_hipcc_convert(tmp_path, out_path, root_dir, arch)
         with open(out_path, 'rb') as f:
             return f.read()
 
@@ -363,7 +350,6 @@ def _preprocess_hipcc(source, options):
 
 def _convert_to_hip_source(source):
     table = [
-        ('extern "C"', ''),
         ('threadIdx.', 'hipThreadIdx_'),
         ('blockIdx.', 'hipBlockIdx_'),
         ('blockDim.', 'hipBlockDim_'),

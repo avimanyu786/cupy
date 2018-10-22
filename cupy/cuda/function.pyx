@@ -146,7 +146,6 @@ cdef _launch_hip(size_t func, Py_ssize_t grid0, int grid1, int grid2,
     cdef unsigned char* ptr
     cdef size_t total
     cdef Py_ssize_t size, pad
-    kargs.assign(24, 0)
     for a in args:
         cp = _pointer(a)
         ptr = <unsigned char*>cp.ptr
