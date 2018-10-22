@@ -1,6 +1,6 @@
 #pragma once
 
-#if __CUDA_ARCH__ < 600
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 600)
 
 __device__ double atomicAdd(double *address, double val)
 {
