@@ -244,10 +244,6 @@ class simple_reduction_function(object):
         out_block_num = (
             out_indexer.size + block_stride - 1) // block_stride
 
-        if runtime._is_hip_environment:
-            # TODO(okuta): remove this workaround
-            ret.copy()
-
         kern.linear_launch(
             out_block_num * block_size, inout_args, 0, block_size)
         return ret
