@@ -8,6 +8,7 @@
 #if !defined(CUPY_NO_CUDA) && !defined(CUPY_USE_HIP)
 #include <cuda.h>
 
+<<<<<<< HEAD
 #ifdef __APPLE__
 #if CUDA_VERSION == 7050
 // To avoid redefinition error of cudaDataType_t
@@ -823,6 +824,9 @@ cudaError_t cudaProfilerStop() {
 } // extern "C"
 
 #elif !defined(CUPY_NO_CUDA)
+=======
+#ifndef CUPY_NO_CUDA
+>>>>>>> master
 #include <cublas_v2.h>
 #include <cuda_profiler_api.h>
 #include <cuda_runtime.h>
@@ -833,6 +837,7 @@ cudaError_t cudaProfilerStop() {
 
 extern "C" {
 
+<<<<<<< HEAD
 bool hip_environment = false;
 
 #if CUDA_VERSION < 8000
@@ -892,6 +897,8 @@ cublasStatus_t cublasGemmEx(...) {
 #endif // #if CUDA_VERSION < 8000
 
 
+=======
+>>>>>>> master
 #if CUDA_VERSION < 9000
 
 typedef enum {} cublasMath_t;
