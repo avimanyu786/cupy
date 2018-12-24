@@ -390,26 +390,10 @@ cdef class ndarray:
                     order_char == 'F' and self._f_contiguous):
                 return self
 
-        if order_char == 'A':
-            if self._f_contiguous:
-                order_char = 'F'
-            else:
-                order_char = 'C'
-        elif order_char == 'K':
-            if self._f_contiguous:
-                order_char = 'F'
-            elif self._c_contiguous:
-                order_char = 'C'
+        order_char = _update_order_char(self, order_char)
 
         if order_char == 'K':
-            stride_and_index = [
-                (abs(s), -i) for i, s in enumerate(self._strides)]
-            stride_and_index.sort()
-            strides.resize(self.ndim)
-            stride = dtype.itemsize
-            for s, i in stride_and_index:
-                strides[-i] = stride
-                stride *= self._shape[-i]
+            strides = _get_strides_for_order_K(self, dtype)
             newarray = ndarray(self.shape, dtype=dtype)
             # TODO(niboshi): Confirm update_x_contiguity flags
             newarray._set_shape_and_strides(self._shape, strides, True, True)
@@ -2030,6 +2014,35 @@ cpdef vector.vector[Py_ssize_t] _get_strides_for_nocopy_reshape(
     return newstrides
 
 
+cpdef int _update_order_char(ndarray x, int order_char):
+    # update order_char based on array contiguity
+    if order_char == 'A':
+        if x._f_contiguous:
+            order_char = 'F'
+        else:
+            order_char = 'C'
+    elif order_char == 'K':
+        if x._f_contiguous:
+            order_char = 'F'
+        elif x._c_contiguous:
+            order_char = 'C'
+    return order_char
+
+
+cpdef vector.vector[Py_ssize_t] _get_strides_for_order_K(ndarray x, dtype):
+    cdef vector.vector[Py_ssize_t] strides
+    # strides used when order='K' for astype, empty_like, etc.
+    stride_and_index = [
+        (abs(s), -i) for i, s in enumerate(x.strides)]
+    stride_and_index.sort()
+    strides.resize(x.ndim)
+    stride = dtype.itemsize
+    for s, i in stride_and_index:
+        strides[-i] = stride
+        stride *= x.shape[-i]
+    return strides
+
+
 include "carray.pxi"
 
 
@@ -2418,7 +2431,8 @@ cpdef ndarray array(obj, dtype=None, bint copy=True, str order='K',
                 'Using synchronous transfer as pinned memory ({} bytes) '
                 'could not be allocated. '
                 'This generally occurs because of insufficient host memory. '
-                'The original error was: {}'.format(nbytes, error))
+                'The original error was: {}'.format(nbytes, error),
+                util.PerformanceWarning)
             a.data.copy_from_host(a_cpu.ctypes.get_as_parameter(), nbytes)
 
     return a
@@ -2682,7 +2696,11 @@ cdef class broadcast:
                 if a_sh == r_shape[i]:
                     r_strides[i] = a._strides[a_ndim - i - 1]
                 elif a_sh != 1:
-                    raise ValueError('Broadcasting failed')
+                    raise ValueError(
+                        'operands could not be broadcast together with shapes '
+                        '{}'.format(
+                            ', '.join([str(x.shape) if isinstance(x, ndarray)
+                                       else '()' for x in arrays])))
 
             strides.assign(r_strides.rbegin(), r_strides.rend())
             view = a.view()
@@ -2716,7 +2734,9 @@ cpdef ndarray broadcast_to(ndarray array, shape):
         if sh == a_sh:
             strides[j] = array._strides[i]
         elif a_sh != 1:
-            raise ValueError('Broadcasting failed')
+            raise ValueError(
+                'operands could not be broadcast together with shape {} and '
+                'requested shape {}'.format(array.shape, shape))
 
     view = array.view()
     # TODO(niboshi): Confirm update_x_contiguity flags
@@ -4011,10 +4031,10 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
         batchCount *= i
 
     global _cuda_runtime_version
-    if _cuda_runtime_version is None:
+    if _cuda_runtime_version < 0:
         _cuda_runtime_version = runtime.runtimeGetVersion()
 
-    handle = cuda.get_cublas_handle()
+    handle = device.get_cublas_handle()
 
     # TODO(anaruse) use cublasGemmStridedBatchedEx() when cuda version >= 9.1
     if not use_broadcast:
@@ -4022,7 +4042,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
         strideB = _get_stride_for_strided_batched_gemm(b)
         strideC = _get_stride_for_strided_batched_gemm(out_view)
         if dtype == numpy.float32:
-            cuda.cublas.sgemmStridedBatched(
+            cublas.sgemmStridedBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4032,7 +4052,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
                 0.0, out_view.data.ptr, ldout, strideC,
                 batchCount)
         elif dtype == numpy.float64:
-            cuda.cublas.dgemmStridedBatched(
+            cublas.dgemmStridedBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4042,7 +4062,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
                 0.0, out_view.data.ptr, ldout, strideC,
                 batchCount)
         elif dtype == numpy.complex64:
-            cuda.cublas.cgemmStridedBatched(
+            cublas.cgemmStridedBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4052,7 +4072,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
                 0, out_view.data.ptr, ldout, strideC,
                 batchCount)
         elif dtype == numpy.complex128:
-            cuda.cublas.zgemmStridedBatched(
+            cublas.zgemmStridedBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4068,7 +4088,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
         bp = _mat_ptrs(b)
         outp = _mat_ptrs(out_view)
         if dtype == numpy.float32:
-            cuda.cublas.sgemmBatched(
+            cublas.sgemmBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4077,7 +4097,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
                 bp.data.ptr, ldb,
                 0.0, outp.data.ptr, ldout, batchCount)
         elif dtype == numpy.float64:
-            cuda.cublas.dgemmBatched(
+            cublas.dgemmBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4086,7 +4106,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
                 bp.data.ptr, ldb,
                 0.0, outp.data.ptr, ldout, batchCount)
         elif dtype == numpy.complex64:
-            cuda.cublas.cgemmBatched(
+            cublas.cgemmBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4095,7 +4115,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
                 bp.data.ptr, ldb,
                 0, outp.data.ptr, ldout, batchCount)
         elif dtype == numpy.complex128:
-            cuda.cublas.zgemmBatched(
+            cublas.zgemmBatched(
                 handle,
                 0,  # transa
                 0,  # transb
@@ -4114,7 +4134,7 @@ cpdef ndarray matmul(ndarray a, ndarray b, ndarray out=None):
         return ret
 
 
-cdef _cuda_runtime_version = None
+cdef int _cuda_runtime_version = -1
 cdef _tensordot_core_mul_sum = ReductionKernel(
     'S x, T y', 'U out',
     'static_cast<U>(x) * static_cast<U>(y)',
@@ -4141,7 +4161,7 @@ cpdef ndarray tensordot_core(
         return out
 
     global _cuda_runtime_version
-    if _cuda_runtime_version is None:
+    if _cuda_runtime_version < 0:
         _cuda_runtime_version = runtime.runtimeGetVersion()
 
     use_sgemmEx = (a.dtype == 'e' and b.dtype == 'e' and
@@ -4270,9 +4290,9 @@ cpdef inline tuple _to_cublas_vector(ndarray a, Py_ssize_t rundim):
 # Logic functions
 # -----------------------------------------------------------------------------
 
-cpdef create_comparison(name, op, doc='', require_sortable_dtype=True):
+cpdef create_comparison(name, op, doc='', no_complex_dtype=True):
 
-    if require_sortable_dtype:
+    if no_complex_dtype:
         ops = ('??->?', 'bb->?', 'BB->?', 'hh->?', 'HH->?', 'ii->?', 'II->?',
                'll->?', 'LL->?', 'qq->?', 'QQ->?', 'ee->?', 'ff->?', 'dd->?')
     else:
@@ -4294,7 +4314,7 @@ greater = create_comparison(
     .. seealso:: :data:`numpy.greater`
 
     ''',
-    require_sortable_dtype=False)
+    no_complex_dtype=False)
 
 
 greater_equal = create_comparison(
@@ -4304,7 +4324,7 @@ greater_equal = create_comparison(
     .. seealso:: :data:`numpy.greater_equal`
 
     ''',
-    require_sortable_dtype=False)
+    no_complex_dtype=False)
 
 
 less = create_comparison(
@@ -4314,7 +4334,7 @@ less = create_comparison(
     .. seealso:: :data:`numpy.less`
 
     ''',
-    require_sortable_dtype=False)
+    no_complex_dtype=False)
 
 
 less_equal = create_comparison(
@@ -4324,7 +4344,7 @@ less_equal = create_comparison(
     .. seealso:: :data:`numpy.less_equal`
 
     ''',
-    require_sortable_dtype=False)
+    no_complex_dtype=False)
 
 
 equal = create_comparison(
@@ -4334,7 +4354,7 @@ equal = create_comparison(
     .. seealso:: :data:`numpy.equal`
 
     ''',
-    require_sortable_dtype=False)
+    no_complex_dtype=False)
 
 
 not_equal = create_comparison(
@@ -4344,7 +4364,7 @@ not_equal = create_comparison(
     .. seealso:: :data:`numpy.equal`
 
     ''',
-    require_sortable_dtype=False)
+    no_complex_dtype=False)
 
 
 _all = create_reduction_func(

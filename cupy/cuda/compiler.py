@@ -66,15 +66,14 @@ def _get_bool_env_variable(name, default):
         return False
 
 
-def compile_using_nvrtc(source, options=(), arch=None):
+def compile_using_nvrtc(source, options=(), arch=None, filename='kern.cu'):
     if not arch:
         arch = _get_arch()
 
     options += ('-arch={}'.format(arch),)
 
     with TemporaryDirectory() as root_dir:
-        path = os.path.join(root_dir, 'kern')
-        cu_path = '%s.cu' % path
+        cu_path = os.path.join(root_dir, filename)
 
         with open(cu_path, 'w') as cu_file:
             cu_file.write(source)
@@ -139,6 +138,8 @@ def _compile_with_cache_nvrtc(source, options, arch, cache_dir,
         arch = _get_arch()
 
     options += ('-ftz=true',)
+    if _get_bool_env_variable('CUPY_CUDA_COMPILE_WITH_DEBUG', False):
+        options += ('--device-debug', '--generate-line-info')
 
     env = (arch, options, _get_nvrtc_version())
     base = _empty_file_preprocess_cache.get(env, None)
@@ -173,7 +174,7 @@ def _compile_with_cache_nvrtc(source, options, arch, cache_dir,
                 mod.load(cubin)
                 return mod
 
-    ptx = compile_using_nvrtc(source, options, arch)
+    ptx = compile_using_nvrtc(source, options, arch, name + '.cu')
     ls = function.LinkState()
     ls.add_ptr_data(ptx, six.u('cupy.ptx'))
     cubin = ls.complete()
