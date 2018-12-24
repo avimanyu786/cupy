@@ -108,6 +108,7 @@ def get_compiler_setting(use_cpp11):
     include_dirs = []
     library_dirs = []
     define_macros = []
+    extra_compile_args = []
 
     if cuda_path:
         include_dirs.append(os.path.join(cuda_path, 'include'))
@@ -125,7 +126,7 @@ def get_compiler_setting(use_cpp11):
         library_dirs.append(os.path.join(rocm_path, 'rocrand', 'lib'))
 
     if use_cpp11:
-        extra_compile_args = ['-std=c++11']
+        extra_compile_args.append('-std=c++11')
 
     if PLATFORM_DARWIN:
         library_dirs.append('/usr/local/cuda/lib')
