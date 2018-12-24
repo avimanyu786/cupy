@@ -1,11 +1,5 @@
 #pragma once
 
-#ifdef __HIPCC__
-#include <hip/hip_runtime.h>
-#include <tuple>
-int main() {return 0;}
-#endif
-
 // math
 #ifndef M_PI
 #define M_PI 3.1415926535897932384626433832795
@@ -13,6 +7,7 @@ int main() {return 0;}
 
 #ifdef __HIPCC__
 
+#include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 
 #elif __CUDACC_VER_MAJOR__ >= 9
@@ -46,7 +41,6 @@ public:
 };
 
 #endif  // #if __CUDACC_VER_MAJOR__ >= 9
-
 
 class float16 {
 private:
@@ -173,30 +167,7 @@ __device__ int isinf(float16 x) {return x.isinf();}
 __device__ int isfinite(float16 x) {return x.isfinite();}
 __device__ int signbit(float16 x) {return x.signbit();}
 
-
 // CArray
-#ifdef __HIPCC__
-template<typename T, std::size_t N, typename... Rest>
-struct tupleN_impl_ {
-  using type = typename tupleN_impl_<T, N - 1, T, Rest...>::type;
-};
-
-template<typename T, typename... Rest>
-struct tupleN_impl_<T, 0, Rest...> {
-  using type = std::tuple<Rest...>;
-};
-
-template<typename T, std::size_t N>
-using tupleN_ = typename tupleN_impl_<T, N>::type;
-
-#else  // #ifdef __HIPCC__
-template<typename T, size_t N>
-struct tupleN_ {
-  T _dummy[N];
-};
-
-#endif  // #ifdef __HIPCC__
-
 #define CUPY_FOR(i, n) \
     for (ptrdiff_t i = \
             static_cast<ptrdiff_t>(blockIdx.x) * blockDim.x + threadIdx.x; \
@@ -210,14 +181,8 @@ public:
 private:
   T* data_;
   ptrdiff_t size_;
-  union {
-    tupleN_<ptrdiff_t, ndim> shape__;
-    ptrdiff_t shape_[ndim];
-  };
-  union {
-    tupleN_<ptrdiff_t, ndim> strides__;
-    ptrdiff_t strides_[ndim];
-  };
+  ptrdiff_t shape_[ndim];
+  ptrdiff_t strides_[ndim];
 
 public:
   __device__ ptrdiff_t size() const {
@@ -264,7 +229,6 @@ public:
   }
 };
 
-
 template <typename T>
 class CArray<T, 0> {
 private:
@@ -297,21 +261,14 @@ public:
   }
 };
 
-
 template <int _ndim>
 class CIndexer {
 public:
   static const int ndim = _ndim;
 private:
   ptrdiff_t size_;
-  union {
-    tupleN_<ptrdiff_t, ndim> shape__;
-    ptrdiff_t shape_[ndim];
-  };
-  union {
-    tupleN_<ptrdiff_t, ndim> index__;
-    ptrdiff_t index_[ndim];
-  };
+  ptrdiff_t shape_[ndim];
+  ptrdiff_t index_[ndim];
 
   typedef ptrdiff_t index_t[ndim];
 
