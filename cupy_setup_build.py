@@ -295,11 +295,12 @@ def preconfigure_modules(compiler, settings):
         print('-------- Configuring Module: {} --------'.format(
             module['name']))
         sys.stdout.flush()
-        if not check_library(compiler,
-                             includes=module['include'],
-                             include_dirs=settings['include_dirs'],
-                             define_macros=settings['define_macros'],
-                             extra_compile_args=settings['extra_compile_args']):
+        if not check_library(
+                compiler,
+                includes=module['include'],
+                include_dirs=settings['include_dirs'],
+                define_macros=settings['define_macros'],
+                extra_compile_args=settings['extra_compile_args']):
             errmsg = ['Include files not found: %s' % module['include'],
                       'Check your CFLAGS environment variable.']
         elif not check_library(
