@@ -18,8 +18,12 @@ _available = None
 _cuda_path = None
 
 
-from cupy.cuda import cusolver  # NOQA
-cusolver_enabled = True
+try:
+    # For HIP
+    from cupy.cuda import cusolver  # NOQA
+    cusolver_enabled = True
+except ImportError:
+    cusolver_enabled = False
 
 try:
     from cupy.cuda import nvtx  # NOQA

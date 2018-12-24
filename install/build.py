@@ -101,7 +101,7 @@ def get_nvcc_path():
         return None
 
 
-def get_compiler_setting():
+def get_compiler_setting(use_cpp11):
     cuda_path = get_cuda_path()
     rocm_path = get_rocm_path()
 
@@ -124,6 +124,9 @@ def get_compiler_setting():
         library_dirs.append(os.path.join(rocm_path, 'lib'))
         library_dirs.append(os.path.join(rocm_path, 'rocrand', 'lib'))
 
+    if use_cpp11:
+        extra_compile_args = ['-std=c++11']
+
     if PLATFORM_DARWIN:
         library_dirs.append('/usr/local/cuda/lib')
 
@@ -140,6 +143,7 @@ def get_compiler_setting():
         'library_dirs': library_dirs,
         'define_macros': define_macros,
         'language': 'c++',
+        'extra_compile_args': extra_compile_args,
     }
 
 
@@ -364,14 +368,16 @@ def check_nvtx(compiler, settings):
 
 
 def build_shlib(compiler, source, libraries=(),
-                include_dirs=(), library_dirs=(), define_macros=None):
+                include_dirs=(), library_dirs=(), define_macros=None,
+                extra_compile_args=()):
     with _tempdir() as temp_dir:
         fname = os.path.join(temp_dir, 'a.cpp')
         with open(fname, 'w') as f:
             f.write(source)
         objects = compiler.compile([fname], output_dir=temp_dir,
                                    include_dirs=include_dirs,
-                                   macros=define_macros)
+                                   macros=define_macros,
+                                   extra_postargs=list(extra_compile_args))
 
         try:
             postargs = ['/MANIFEST'] if PLATFORM_WIN32 else []
@@ -387,7 +393,8 @@ def build_shlib(compiler, source, libraries=(),
 
 
 def build_and_run(compiler, source, libraries=(),
-                  include_dirs=(), library_dirs=(), define_macros=None):
+                  include_dirs=(), library_dirs=(), define_macros=None,
+                  extra_compile_args=()):
     with _tempdir() as temp_dir:
         fname = os.path.join(temp_dir, 'a.cpp')
         with open(fname, 'w') as f:
@@ -395,7 +402,8 @@ def build_and_run(compiler, source, libraries=(),
 
         objects = compiler.compile([fname], output_dir=temp_dir,
                                    include_dirs=include_dirs,
-                                   macros=define_macros)
+                                   macros=define_macros,
+                                   extra_postargs=list(extra_compile_args))
 
         try:
             postargs = ['/MANIFEST'] if PLATFORM_WIN32 else []

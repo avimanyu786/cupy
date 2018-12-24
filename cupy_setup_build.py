@@ -165,13 +165,11 @@ if use_hip:
     mod_cuda['include'] = [
         'hip/hip_runtime.h',
         'hipblas.h',
-        #        'cublas_v2.h',
+        'hipsparse.h',
         #        'cuda.h',
         #        'cuda_profiler_api.h',
         #        'cuda_runtime.h',
         #        'cufft.h',
-        #        'curand.h',
-        #        'cusparse.h',
         #        'nvrtc.h',
         #        'nvToolsExt.h',
     ]
@@ -179,12 +177,10 @@ if use_hip:
         'hip_hcc',
         'hipblas',
         'hiprand',
-        #        'hipblas',
+        'hipsparse',
         #        'cuda',
         #        'cudart',
         #        'cufft',
-        #        'curand',
-        #        'cusparse',
         #        'nvrtc',
         #        'nvToolsExt',
     ]
@@ -234,7 +230,8 @@ def check_readthedocs_environment():
 
 
 def check_library(compiler, includes=(), libraries=(),
-                  include_dirs=(), library_dirs=(), define_macros=None):
+                  include_dirs=(), library_dirs=(), define_macros=None,
+                  extra_compile_args=()):
 
     source = ''.join(['#include <%s>\n' % header for header in includes])
     source += 'int main(int argc, char* argv[]) {return 0;}'
@@ -244,7 +241,8 @@ def check_library(compiler, includes=(), libraries=(),
         # Especially when a user build an executable, distutils does not use
         # LDFLAGS environment variable.
         build.build_shlib(compiler, source, libraries,
-                          include_dirs, library_dirs, define_macros)
+                          include_dirs, library_dirs, define_macros,
+                          extra_compile_args)
     except Exception as e:
         print(e)
         sys.stdout.flush()
@@ -299,13 +297,16 @@ def preconfigure_modules(compiler, settings):
         if not check_library(compiler,
                              includes=module['include'],
                              include_dirs=settings['include_dirs'],
-                             define_macros=settings['define_macros']):
+                             define_macros=settings['define_macros'],
+                             extra_compile_args=settings['extra_compile_args']):
             errmsg = ['Include files not found: %s' % module['include'],
                       'Check your CFLAGS environment variable.']
-        elif not check_library(compiler,
-                               libraries=module['libraries'],
-                               library_dirs=settings['library_dirs'],
-                               define_macros=settings['define_macros']):
+        elif not check_library(
+                compiler,
+                libraries=module['libraries'],
+                library_dirs=settings['library_dirs'],
+                define_macros=settings['define_macros'],
+                extra_compile_args=settings['extra_compile_args']):
             errmsg = ['Cannot link libraries: %s' % module['libraries'],
                       'Check your LDFLAGS environment variable.']
         elif ('check_method' in module and
@@ -335,6 +336,7 @@ def preconfigure_modules(compiler, settings):
 
             # Skip checking other modules when CUDA is unavailable.
             if module['name'] == 'cuda':
+                print(errmsg)
                 break
 
     if len(ret) != len(MODULES):
@@ -378,7 +380,8 @@ def make_extensions(options, compiler, use_cython):
 
     no_cuda = options['no_cuda']
     use_hip = options['use_hip']
-    settings = build.get_compiler_setting()
+    use_cpp11 = use_hip
+    settings = build.get_compiler_setting(use_cpp11)
 
     include_dirs = settings['include_dirs']
 

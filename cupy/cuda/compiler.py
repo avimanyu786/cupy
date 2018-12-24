@@ -312,23 +312,22 @@ def _hipcc(source, options, arch):
     with TemporaryDirectory() as root_dir:
         path = os.path.join(root_dir, 'kern')
         in_path = path + '.cpp'
-        dummy_out_path = path + '.out'
-        tmp_path = dummy_out_path + '.adipose'
-        out_path = dummy_out_path + '_%s.ffa' % arch
+        tmp_out_path = path + '.out'
+        out_path = tmp_out_path + '_%s.ffa' % arch
 
         with open(in_path, 'w') as f:
             f.write(source)
 
-        cmd += [in_path, '-o', dummy_out_path]
+        cmd += [in_path, '-o', tmp_out_path]
 
         output = _run_hipcc(cmd, root_dir)
-        if not os.path.isfile(tmp_path):
+        if not os.path.isfile(tmp_out_path):
             raise RuntimeError(
                 '`hipcc` command does not generate output file. \n'
                 'command: {0}\n'
                 'stdout/stderr: \n'
                 '{1}'.format(cmd, output))
-        _run_hipcc_convert(tmp_path, out_path, root_dir, arch)
+        _run_hipcc_convert(tmp_out_path, out_path, root_dir, arch)
         with open(out_path, 'rb') as f:
             return f.read()
 
