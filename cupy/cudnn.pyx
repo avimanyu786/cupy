@@ -87,7 +87,7 @@ cdef class Descriptor:
         self.value = descriptor
         self.destroy = destroyer
 
-    def __del__(self):
+    def __dealloc__(self):
         if self.value:
             self.destroy(self.value)
             self.value = 0
@@ -532,7 +532,7 @@ cdef class _DescriptorArray:
     def __init__(self, destroyer):
         self._destroy = destroyer
 
-    def __del__(self):
+    def __dealloc__(self):
         for desc in self._value:
             self._destroy(desc)
 
@@ -1022,7 +1022,7 @@ cpdef _Algorithm _get_algorithm_fwd(
                 'The best algo of conv fwd might not be selected due to '
                 'lack of workspace size ({})'.format(max_workspace_size),
                 util.PerformanceWarning)
-        if perf.math_type != cudnn.CUDNN_TENSOR_OP_MATH:
+        if perf.mathType != cudnn.CUDNN_TENSOR_OP_MATH:
             _warn_algorithm_fwd(x, W, y, conv_param)
         algo = _Algorithm(perf.algo, perf.memory, perf.mathType)
     else:
@@ -1592,7 +1592,7 @@ def batch_normalization_forward_training(
         _create_tensor_descriptor_for_bn(x_desc, x, is_for_conv2d)
         cudnn.deriveBNTensorDescriptor(derivedBnDesc, x_desc, cudnn_mode)
         dtype_param = _get_dtype_of_tensor_descriptor(derivedBnDesc)
-        if dtype_param != dtype:
+        if gamma.dtype != dtype_param:
             gamma = gamma.astype(dtype_param)
             beta = beta.astype(dtype_param)
             running_mean_tmp = running_mean.astype(dtype_param)
@@ -1664,7 +1664,7 @@ def batch_normalization_forward_inference(
         _create_tensor_descriptor_for_bn(x_desc, x, is_for_conv2d)
         cudnn.deriveBNTensorDescriptor(derivedBnDesc, x_desc, cudnn_mode)
         dtype_param = _get_dtype_of_tensor_descriptor(derivedBnDesc)
-        if dtype_param != dtype:
+        if gamma.dtype != dtype_param:
             gamma = gamma.astype(dtype_param)
             beta = beta.astype(dtype_param)
             mean = mean.astype(dtype_param)
@@ -1710,7 +1710,7 @@ def batch_normalization_backward(
         _create_tensor_descriptor_for_bn(x_desc, x, is_for_conv2d)
         cudnn.deriveBNTensorDescriptor(derivedBnDesc, x_desc, cudnn_mode)
         dtype_param = _get_dtype_of_tensor_descriptor(derivedBnDesc)
-        need_cast = dtype_param != dtype
+        need_cast = gamma.dtype != dtype_param
         if need_cast:
             gamma = gamma.astype(dtype_param)
         else:
