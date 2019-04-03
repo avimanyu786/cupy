@@ -119,13 +119,13 @@ cdef class PinnedMemoryPointer:
 
     def __getreadbuffer__(self, Py_ssize_t idx, void **p):
         if idx != 0:
-            raise SystemError("accessing non-existent buffer segment")
+            raise SystemError('accessing non-existent buffer segment')
         p[0] = <void*>self.ptr
         return self.size()
 
     def __getwritebuffer__(self, Py_ssize_t idx, void **p):
         if idx != 0:
-            raise SystemError("accessing non-existent buffer segment")
+            raise SystemError('accessing non-existent buffer segment')
         p[0] = <void*>self.ptr
         return self.size()
 
@@ -302,7 +302,7 @@ cdef class PinnedMemoryPool:
                 try:
                     mem = self._alloc(size).mem
                 except runtime.CUDARuntimeError as e:
-                    if e.status != runtime.errorMemoryAllocation:
+                    if e.status != runtime.cudaErrorMemoryAllocation:
                         raise
                     self.free_all_blocks()
                     mem = self._alloc(size).mem

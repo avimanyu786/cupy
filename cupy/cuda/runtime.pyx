@@ -38,7 +38,8 @@ cdef extern from *:
     ctypedef StreamCallbackDef* StreamCallback 'cudaStreamCallback_t'
 
 
-cdef extern from "cupy_cuda.h" nogil:
+cdef extern from 'cupy_cuda.h' nogil:
+
     # Types
     ctypedef struct _PointerAttributes 'cudaPointerAttributes':
         int device
@@ -121,6 +122,14 @@ _is_hip_environment = hip_environment
 is_hip = hip_environment
 deviceAttributeComputeCapabilityMajor = cudaDevAttrComputeCapabilityMajor
 deviceAttributeComputeCapabilityMinor = cudaDevAttrComputeCapabilityMinor
+
+
+###############################################################################
+# Error codes
+###############################################################################
+
+errorInvalidValue = cudaErrorInvalidValue
+errorMemoryAllocation = cudaErrorMemoryAllocation
 
 
 ###############################################################################

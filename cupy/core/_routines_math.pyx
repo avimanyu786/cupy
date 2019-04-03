@@ -126,7 +126,7 @@ def _inclusive_scan_kernel(dtype, block_size):
          cupy.cuda.Function: cuda function
     """
 
-    name = "inclusive_scan_kernel"
+    name = 'inclusive_scan_kernel'
     dtype = get_typename(dtype)
     source = string.Template("""
     extern "C" __global__ void ${name}(
@@ -177,7 +177,7 @@ def _inclusive_scan_kernel(dtype, block_size):
 
 @util.memoize(for_each_device=True)
 def _add_scan_blocked_sum_kernel(dtype):
-    name = "add_scan_blocked_sum_kernel"
+    name = 'add_scan_blocked_sum_kernel'
     dtype = get_typename(dtype)
     source = string.Template("""
     extern "C" __global__ void ${name}(
@@ -212,7 +212,7 @@ cdef ndarray scan(ndarray a, ndarray out=None):
 
     """
     if a._shape.size() != 1:
-        raise TypeError("Input array should be 1D array.")
+        raise TypeError('Input array should be 1D array.')
 
     cdef Py_ssize_t block_size = 256
 
@@ -220,7 +220,7 @@ cdef ndarray scan(ndarray a, ndarray out=None):
         out = ndarray(a.shape, dtype=a.dtype)
     else:
         if a.size != out.size:
-            raise ValueError("Provided out is the wrong size")
+            raise ValueError('Provided out is the wrong size')
 
     kern_scan = _inclusive_scan_kernel(a.dtype, block_size)
     kern_scan(grid=((a.size - 1) // (2 * block_size) + 1,),
