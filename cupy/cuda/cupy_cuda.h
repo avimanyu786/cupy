@@ -146,7 +146,11 @@ enum {
 };
 
 typedef hipError_t cudaError_t;
-const CUresult cudaSuccess=static_cast<CUresult>(0);
+const CUresult cudaSuccess = static_cast<CUresult>(0);
+const CUresult cudaErrorInvalidValue = static_cast<CUresult>(
+    hipErrorInvalidValue);
+const CUresult cudaErrorMemoryAllocation = static_cast<CUresult>(
+    hipErrorMemoryAllocation);
 typedef enum {} cudaDataType;
 typedef hipDeviceAttribute_t cudaDeviceAttr;
 enum cudaMemoryAdvise {};
